@@ -1,0 +1,22 @@
+// Global theme variables
+:root {
+  --color-primary: #2A9D8F;
+  --color-secondary: #52B788;
+  --color-accent: #95D5B2;
+  --color-light: #D8F3DC;
+  --color-bg: #F1FAF5;
+}
+[data-theme="dark"] {
+  --color-primary: #184e4b;
+  --color-secondary: #1b6b5a;
+  --color-accent: #3a8c7e;
+  --color-light: #2a9d8f;
+  --color-bg: #1a2b26;
+}
+
+/* Hide any ArcGIS popup containers globally while preserving background click logic */
+.esri-popup,
+.esri-view-popup,
+.esri-popup__main-container {
+  display: none !important;
+}
