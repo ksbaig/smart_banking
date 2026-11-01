@@ -1,7 +1,7 @@
 <section class="voice-agent-panel">
   <header class="panel-header">
-    <h3>Local Banking Voice Agent</h3>
-    <p>Search local ATM and branch data using typed or spoken commands.</p>
+    <h3>Local Banking AI Agent</h3>
+    <p>Search local ATM and branch data using typed commands.</p>
   </header>
 
   <div class="query-row">
@@ -18,17 +18,18 @@
   <div class="voice-row">
     <button
       type="button"
+      hidden
       class="mic"
       (click)="startVoiceCapture()"
       [disabled]="voiceState === 'listening' || loadingData"
     >
       Start Mic
     </button>
-    <button type="button" (click)="stopVoiceCapture()" [disabled]="voiceState !== 'listening'">Stop Mic</button>
-    <span class="state">State: {{ voiceState }}</span>
+    <button type="button" hidden (click)="stopVoiceCapture()" [disabled]="voiceState !== 'listening'">Stop Mic</button>
+    <span hidden class="state">State: {{ voiceState }}</span>
   </div>
 
-  <p class="status">{{ statusMessage }}</p>
+  <p hidden class="status">{{ statusMessage }}</p>
 
   @if (recognizedTranscript) {
     <p class="transcript">

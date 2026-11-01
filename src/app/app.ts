@@ -33,10 +33,11 @@ import { PlotPrintComponent } from "./features/plot-print/plot-print.component";
 import { PresentationPlotComponent } from "./features/presentation-plot/presentation-plot.component";
 import { CustomEsriToolbarComponent } from "./components/custom-esri-toolbar/custom-esri-toolbar.component";
 import { AddedAttributeField, AddedAttributesEditorComponent } from "./features/added-attributes-editor/added-attributes-editor.component";
-import { PendingUpdatesComponent } from "./features/pending-updates/pending-updates.component";
 import { LoginOverlayComponent } from "./features/login-overlay/login-overlay.component";
 import { LocalBankingVioceAgentComponent } from "./features/local_banking_vioce_agent/local_banking_vioce_agent.component";
 import { ComponentDownloadComponent, SelectedLocation } from "./features/component-download/component-download.component";
+import { Component_Atm_Dashboard } from "./features/component_atm_dashboard/component_atm_dashboard.component";
+import { Component_Branches_Dashboard } from "./features/component_branches_dashboard/component_branches_dashboard.component";
 import { PendingUpdatesService } from "./core/services/pending-updates.service";
 import { PendingUpdateRecord, PendingUpdateValues } from "./shared/models/pending-update.model";
 import WebScene from "@arcgis/core/WebScene";
@@ -121,6 +122,15 @@ type AtmPerformanceCategory = "Profit" | "Loss" | "Break-even";
 const BRANCH_DASHBOARD_GEOJSON_URL = new URL("geojson/Riyadh_Branch_Locations.geojson", document.baseURI).toString();
 const ATM_DASHBOARD_GEOJSON_URL = new URL("geojson/Riyadh_ATM_Locations.geojson", document.baseURI).toString();
 
+interface BranchReportRow {
+  Entity_ID: string;
+  Bank_Name: string;
+  District: string;
+  Entity_Name: string;
+  Performance_Status: string;
+}
+type ReportsDataset = "branch" | "atm";
+
 interface AddedAttributeFieldConfig {
   id: string;
   label: string;
@@ -129,7 +139,7 @@ interface AddedAttributeFieldConfig {
 }
 
 type UiLanguage = "en" | "ar";
-type RightPanelSection = "result" | "scene" | "panorama" | "cctv" | "kroki" | "sources" | "files" | "uploads" | "comments" | "dashboard" | "legend" | "pendingUpdates" | "voiceAgent";
+type RightPanelSection = "result" | "scene" | "panorama" | "cctv" | "kroki" | "sources" | "files" | "uploads" | "comments" | "dashboard" | "legend" | "reports" | "voiceAgent";
 type TranslationKey =
   | "appTitle"
   | "noParcelSelected"
@@ -196,7 +206,7 @@ type TranslationKey =
 @Component({
   selector: "app-root",
   standalone: true,
-  imports: [CommonModule, FormsModule, CommentsComponent, PlotPrintComponent, PresentationPlotComponent, CustomEsriToolbarComponent, AddedAttributesEditorComponent, PendingUpdatesComponent, LoginOverlayComponent, ComponentDownloadComponent],
+  imports: [CommonModule, FormsModule, CommentsComponent, PlotPrintComponent, PresentationPlotComponent, CustomEsriToolbarComponent, AddedAttributesEditorComponent, LoginOverlayComponent, ComponentDownloadComponent, Component_Atm_Dashboard, Component_Branches_Dashboard],
   templateUrl: "./app.html",
   styleUrl: "./app.css",
 })
@@ -1156,7 +1166,7 @@ export class App implements OnInit {
   language: UiLanguage = "en";
   readonly i18n: Record<UiLanguage, Record<TranslationKey, string>> = {
     en: {
-      appTitle: "Smart Banking AI Information System",
+      appTitle: "Smart Banking",
       noParcelSelected: "No parcel selected",
       loadingMap: "Loading map...",
       mapReady: "Map ready. Search parcel/road name or click map.",
@@ -1321,6 +1331,8 @@ export class App implements OnInit {
   }
 
   openPanoramaDialog(): void {
+    // Load the bank360view.jpg panoramic image for 360-degree viewing
+    this.panoramaImageUrl = "/assets/img/panoramic/bank360view.jpg";
     // close overlay if open
     if (this.panoramaOverlayOpen) {
       this.closePanoramaOverlay();
@@ -1333,8 +1345,9 @@ export class App implements OnInit {
       void this.initializePanoramaViewer();
       // Auto-click the overlay button after the panel is visible and stable.
       setTimeout(() => {
-        this.triggerPanoramaOverlayButton();
-      }, 1000);
+        // Open in overlay for better 360 experience
+        this.openPanoramaOverlay();
+      }, 500);
     }, 0);
   }
 
@@ -1355,6 +1368,142 @@ export class App implements OnInit {
     this.panoramaLoading = false;
     this.panoramaError = "";
     this.destroyPanoramaViewer();
+  }
+
+  // Street view button handler
+  streetViewOpen = false;
+  streetViewLoading = false;
+  streetViewError: string | null = null;
+  streetViewDistance = 0;
+  streetViewDistanceText = '';
+  streetViewPanoramaHost: ElementRef | null = null;
+  private streetViewSceneView?: SceneView;
+
+  openStreetView(): void {
+    console.log('Street 360 view button clicked');
+    
+    // Check if a parcel is selected
+    if (!this.selectedParcel) {
+      this.showParcelHint();
+      return;
+    }
+    
+    // Get coordinates from selected parcel
+    const geometry = this.selectedParcel.geometry as any;
+    if (!geometry || !geometry.coordinates) {
+      console.warn('No geometry found for selected parcel');
+      this.showParcelHint();
+      return;
+    }
+    
+    // For Polygon or MultiPolygon, get the first coordinate
+    let lng = 0, lat = 0;
+    if (geometry.type === 'Polygon') {
+      const coords = geometry.coordinates[0];
+      lng = coords[0][0];
+      lat = coords[0][1];
+    } else if (geometry.type === 'MultiPolygon') {
+      const coords = geometry.coordinates[0][0];
+      lng = coords[0][0];
+      lat = coords[0][1];
+    } else if (geometry.type === 'Point') {
+      lng = geometry.coordinates[0];
+      lat = geometry.coordinates[1];
+    }
+    
+    // Toggle the street view panel
+    if (this.streetViewOpen) {
+      this.closeStreetView();
+    } else {
+      this.openStreetViewPanel(lat, lng);
+    }
+  }
+
+  private openStreetViewPanel(lat: number, lng: number): void {
+    this.streetViewOpen = true;
+    this.streetViewLoading = true;
+    this.streetViewError = null;
+    this.refreshView();
+    
+    // Wait for the DOM to update, then load street view
+    setTimeout(() => {
+      this.loadStreetViewPanorama(lat, lng);
+    }, 100);
+  }
+
+  private async loadStreetViewPanorama(lat: number, lng: number): Promise<void> {
+    try {
+      // Your ArcGIS Online 3D web scene (must be shared as "Everyone (public)")
+      const sceneId = 'f5340806ed064453ae456dd6751c8226';
+      const portalUrl = 'https://indiff2e0cd0793d.maps.arcgis.com';
+
+      this.destroyStreetViewScene();
+
+      // The host div is only rendered once loading is false, so clear the flag and render it first
+      this.streetViewLoading = false;
+      this.refreshView();
+
+      const container = document.getElementById('street-view-panorama-host') as HTMLDivElement | null;
+      if (!container) {
+        this.streetViewError = 'The 3D scene could not be displayed. Please try again.';
+        this.refreshView();
+        return;
+      }
+
+      const webScene = new WebScene({
+        portalItem: {
+          id: sceneId,
+          portal: { url: portalUrl },
+        },
+      });
+      this.streetViewSceneView = new SceneView({ container, map: webScene });
+      await this.streetViewSceneView.when();
+
+      // Red marker on the selected parcel, matching the 2D map highlight
+      // Lift the marker above the buildings so it is not hidden at ground level
+      const target = new Point({ longitude: lng, latitude: lat, z: 150, spatialReference: { wkid: 4326 } });
+      const markerLayer = new GraphicsLayer({
+        id: 'selected-parcel-marker',
+        elevationInfo: { mode: 'absolute-height' },
+      });
+      markerLayer.add(new Graphic({
+        geometry: target,
+        symbol: {
+          type: 'simple-marker',
+          style: 'circle',
+          color: [255, 0, 0, 1],
+          size: 14,
+          outline: { color: [255, 255, 255, 1], width: 2 },
+        } as any,
+      }));
+      webScene.add(markerLayer);
+
+      // Fly the camera to the selected parcel at street-level tilt
+      await this.streetViewSceneView.goTo(
+        { target, scale: 1500, tilt: 70, heading: 0 },
+        { duration: 1000 }
+      );
+    } catch (err) {
+      console.error('Failed to load 3D scene:', err);
+      this.streetViewError = 'Failed to load the 3D scene. Please try again.';
+      this.streetViewLoading = false;
+      this.refreshView();
+    }
+  }
+
+  private destroyStreetViewScene(): void {
+    this.streetViewSceneView?.destroy();
+    this.streetViewSceneView = undefined;
+  }
+
+  closeStreetView(): void {
+    this.destroyStreetViewScene();
+    this.streetViewOpen = false;
+    this.streetViewLoading = false;
+    this.streetViewError = null;
+    this.streetViewDistance = 0;
+    this.streetViewDistanceText = '';
+    this.refreshView();
   }
 
   // Open panorama as an overlay on top of the map
@@ -1768,8 +1917,16 @@ export class App implements OnInit {
   rightPanelUploadsOpen = false;
   rightPanelCommentsOpen = false;
   rightPanelDashboardOpen = false;
-  rightPanelPendingUpdatesOpen = false;
+  rightPanelReportsOpen = false;
   rightPanelVoiceAgentOpen = false;
+  reportsDataset: ReportsDataset = "branch";
+  branchReportRows: BranchReportRow[] = [];
+  private branchReportsCache: BranchReportRow[] = [];
+  private atmReportsCache: BranchReportRow[] = [];
+  branchReportDisplayedRows: BranchReportRow[] = [];
+  branchReportQuery = "";
+  branchReportsLoading = false;
+  branchReportsError = "";
   pendingUpdateRecords: PendingUpdateRecord[] = [];
   pendingUpdatesLoading = false;
   pendingUpdatesError = "";
@@ -2170,9 +2327,19 @@ export class App implements OnInit {
       return null;
     }
 
+    const firstNonEmpty = (values: unknown[]): string => {
+      for (const value of values) {
+        const text = String(value ?? "").trim();
+        if (text) {
+          return text;
+        }
+      }
+      return "";
+    };
+
     const attrs = (parcel.attributes ?? {}) as Record<string, unknown>;
-    const branchId = String(attrs["Branch_ID"] ?? "").trim();
-    const atmId = String(attrs["ATM_ID"] ?? "").trim();
+    const branchId = firstNonEmpty([attrs["Branch_ID"], attrs["branch_id"], attrs["id"]]);
+    const atmId = firstNonEmpty([attrs["ATM_ID"], attrs["atm_id"], attrs["id"]]);
     const fallbackId = String(parcel.id ?? "").trim();
     const normalizedFallbackId = fallbackId.toUpperCase();
 
@@ -2191,11 +2358,11 @@ export class App implements OnInit {
     }
 
     const id = type === "branch" ? (branchId || fallbackId) : (atmId || fallbackId);
-    const bankName = String(attrs["Bank_Name"] ?? "").trim() || "Unknown bank";
-    const district = String(attrs["District"] ?? "").trim() || "Unknown district";
+    const bankName = firstNonEmpty([attrs["Bank_Name"], attrs["bank_name"], attrs["BankName"], attrs["bankName"]]) || "Unknown bank";
+    const district = firstNonEmpty([attrs["District"], attrs["district"]]) || "Unknown district";
     const name = type === "branch"
-      ? (String(attrs["Branch_Name"] ?? "").trim() || String(parcel.displayName ?? id))
-      : (String(attrs["Site_Name"] ?? "").trim() || String(parcel.displayName ?? id));
+      ? (firstNonEmpty([attrs["Branch_Name"], attrs["branch_name"], attrs["name"]]) || String(parcel.displayName ?? id))
+      : (firstNonEmpty([attrs["Site_Name"], attrs["site_name"], attrs["name"]]) || String(parcel.displayName ?? id));
 
     return {
       type,
@@ -2315,6 +2482,38 @@ export class App implements OnInit {
 
   closePresentationPlotDialog(): void {
     this.presentationPlotDialogOpen = false;
+  }
+
+  dashboardComponentOpen = false;
+  dashboardComponentType: "atm" | "branch" | null = null;
+  dashboardComponentSearch = "";
+
+  openDashboardComponent(): void {
+    const term = String(this.parcelSearchText ?? "").trim();
+    const termUpper = term.toUpperCase();
+    let type: "atm" | "branch" | null = null;
+
+    if (termUpper.startsWith("ATM-")) {
+      type = "atm";
+    } else if (termUpper.startsWith("BR-")) {
+      type = "branch";
+    } else if (!term) {
+      type = this.mapSelectedParcelToDownloadLocation(this.selectedParcel)?.type ?? null;
+    }
+
+    if (!type) {
+      this.parcelStatusText = "Enter an ATM or branch ID (ATM-... or BR-...) to open the dashboard.";
+      return;
+    }
+
+    this.dashboardComponentSearch = term || String(this.selectedParcel?.id ?? "");
+    this.dashboardComponentType = type;
+    this.dashboardComponentOpen = true;
+  }
+
+  closeDashboardComponent(): void {
+    this.dashboardComponentOpen = false;
+    this.dashboardComponentType = null;
   }
 
   closeDownloadModal(): void {
@@ -2868,8 +3067,8 @@ export class App implements OnInit {
       case "legend":
         this.focusLegendPanel();
         break;
-      case "pendingUpdates":
-        this.focusPendingUpdatesPanel();
+      case "reports":
+        this.focusReportsPanel(this.reportsDataset);
         break;
       case "voiceAgent":
         this.focusVoiceAgentPanel();
@@ -3121,16 +3320,21 @@ export class App implements OnInit {
     this.openDashboardPanel();
   }
 
-  togglePendingUpdatesPanel(): void {
-    this.toggleRightPanelSection("pendingUpdates");
+  toggleReportsPanel(): void {
+    this.focusReportsPanel("branch");
   }
 
-  private focusPendingUpdatesPanel(): void {
+  openAtmReportsPanel(): void {
+    this.focusReportsPanel("atm");
+  }
+
+  private focusReportsPanel(dataset: ReportsDataset): void {
     this.expandRightPanel();
     this.resetRightPanelSections();
-    this.activeRightPanelSection = "pendingUpdates";
-    this.rightPanelPendingUpdatesOpen = true;
-    void this.loadPendingUpdates();
+    this.reportsDataset = dataset;
+    this.activeRightPanelSection = "reports";
+    this.rightPanelReportsOpen = true;
+    void this.loadBranchReports(dataset);
   }
 
   private focusVoiceAgentPanel(): void {
@@ -3154,6 +3358,198 @@ export class App implements OnInit {
     }
   }
 
+  private async loadBranchReports(dataset: ReportsDataset, force = false): Promise<void> {
+    if (this.branchReportsLoading) {
+      return;
+    }
+    const cachedRows = dataset === "branch" ? this.branchReportsCache : this.atmReportsCache;
+    if (!force && cachedRows.length > 0) {
+      this.branchReportRows = [...cachedRows];
+      this.applyBranchReportsFilter(this.branchReportQuery);
+      return;
+    }
+
+    this.branchReportsLoading = true;
+    this.branchReportsError = "";
+    try {
+      const sourceUrl = dataset === "branch" ? BRANCH_DASHBOARD_GEOJSON_URL : ATM_DASHBOARD_GEOJSON_URL;
+      const response = await fetch(sourceUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to load ${dataset} reports data: ${response.status}`);
+      }
+
+      const json = (await response.json()) as {
+        features?: Array<{ properties?: Record<string, unknown> }>;
+      };
+      const features = Array.isArray(json.features) ? json.features : [];
+      this.branchReportRows = features.map((feature) => {
+        const properties = feature?.properties ?? {};
+        return {
+          Entity_ID: String(dataset === "branch" ? properties["Branch_ID"] ?? "" : properties["ATM_ID"] ?? "").trim(),
+          Bank_Name: String(properties["Bank_Name"] ?? "").trim(),
+          District: String(properties["District"] ?? "").trim(),
+          Entity_Name: String(dataset === "branch" ? properties["Branch_Name"] ?? "" : properties["Site_Name"] ?? "").trim(),
+          Performance_Status: String(properties["Performance_Status"] ?? "").trim(),
+        };
+      });
+      if (dataset === "branch") {
+        this.branchReportsCache = [...this.branchReportRows];
+      } else {
+        this.atmReportsCache = [...this.branchReportRows];
+      }
+      this.applyBranchReportsFilter(this.branchReportQuery);
+    } catch (error) {
+      console.error(`Failed to load ${dataset} reports`, error);
+      this.branchReportsError = `Unable to load ${dataset.toUpperCase()} reports.`;
+      this.branchReportRows = [];
+      this.branchReportDisplayedRows = [];
+    } finally {
+      this.branchReportsLoading = false;
+      this.refreshView();
+    }
+  }
+
+  onBranchReportsSubmit(): void {
+    this.applyBranchReportsFilter(this.branchReportQuery);
+  }
+
+  onBranchReportsReset(): void {
+    this.branchReportQuery = "";
+    this.applyBranchReportsFilter("");
+  }
+
+  exportBranchReportsPdf(): void {
+    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 10;
+    const rowHeight = 8;
+    const colWidths = [28, 28, 75, 35, 95];
+    const headers = ["Status", this.reportIdHeader, "Bank", "District", this.reportNameHeader];
+    const queryLabel = this.branchReportQuery.trim() || "all";
+
+    let y = margin;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(14);
+    pdf.text(this.reportsTitle, margin, y);
+    y += 7;
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(10);
+    pdf.text(`Query: ${queryLabel}`, margin, y);
+    pdf.text(`Results: ${this.branchReportDisplayedRows.length}`, margin + 95, y);
+    pdf.text(`Date: ${this.branchReportDateLabel}`, margin + 145, y);
+    y += 7;
+
+    const drawHeader = () => {
+      let x = margin;
+      pdf.setFillColor(237, 244, 248);
+      pdf.setDrawColor(210, 225, 234);
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9);
+      for (let i = 0; i < headers.length; i += 1) {
+        pdf.rect(x, y, colWidths[i], rowHeight, "FD");
+        pdf.text(headers[i], x + 2, y + 5.3);
+        x += colWidths[i];
+      }
+      y += rowHeight;
+    };
+
+    drawHeader();
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8.5);
+
+    for (const row of this.branchReportDisplayedRows) {
+      if (y + rowHeight > pageHeight - margin) {
+        pdf.addPage();
+        y = margin;
+        drawHeader();
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8.5);
+      }
+
+      const values = [row.Performance_Status, row.Entity_ID, row.Bank_Name, row.District, row.Entity_Name];
+      let x = margin;
+      for (let i = 0; i < values.length; i += 1) {
+        pdf.setDrawColor(230, 236, 242);
+        pdf.rect(x, y, colWidths[i], rowHeight, "S");
+        const clipped = pdf.splitTextToSize(values[i] || "-", colWidths[i] - 3)[0] || "-";
+        pdf.text(clipped, x + 1.5, y + 5.3);
+        x += colWidths[i];
+      }
+      y += rowHeight;
+    }
+
+    const safeQuery = queryLabel.replace(/[^a-z0-9_-]+/gi, "_").slice(0, 40) || "all";
+    pdf.save(`${this.reportsFilePrefix}_report_${safeQuery}.pdf`);
+  }
+
+  get branchReportStatusLabel(): string {
+    const normalized = this.extractBranchReportStatusQuery(this.branchReportQuery);
+    if (!normalized) {
+      return "All";
+    }
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+
+  get branchReportDistrictCount(): number {
+    const districts = new Set(
+      this.branchReportDisplayedRows.map((row) => row.District.trim().toLowerCase()).filter(Boolean)
+    );
+    return districts.size;
+  }
+
+  get branchReportDateLabel(): string {
+    return new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  }
+
+  get reportsTitle(): string {
+    return this.reportsDataset === "branch" ? "Branch Performance Report" : "ATM Performance Report";
+  }
+
+  get reportEntityPluralLabel(): string {
+    return this.reportsDataset === "branch" ? "branches" : "ATMs";
+  }
+
+  get reportIdHeader(): string {
+    return this.reportsDataset === "branch" ? "Branch ID" : "ATM ID";
+  }
+
+  get reportNameHeader(): string {
+    return this.reportsDataset === "branch" ? "Branch name" : "Site name";
+  }
+
+  get reportQueryExample(): string {
+    return this.reportsDataset === "branch" ? "performance_status = weak" : "performance_status = profit";
+  }
+
+  get reportQueryHelpText(): string {
+    return this.reportsDataset === "branch"
+      ? "Search using: performance_status = strong, weak, or moderate."
+      : "Search using: performance_status = profit, loss, or break-even.";
+  }
+
+  get reportsFilePrefix(): string {
+    return this.reportsDataset === "branch" ? "branch" : "atm";
+  }
+
+  private applyBranchReportsFilter(query: string): void {
+    const normalizedStatus = this.extractBranchReportStatusQuery(query);
+    if (!normalizedStatus) {
+      this.branchReportDisplayedRows = [...this.branchReportRows];
+      return;
+    }
+
+    this.branchReportDisplayedRows = this.branchReportRows.filter((row) =>
+      row.Performance_Status.trim().toLowerCase() === normalizedStatus
+    );
+  }
+
+  private extractBranchReportStatusQuery(query: string): string {
+    const normalizedQuery = query.trim().toLowerCase();
+    return normalizedQuery.replace(/^performance[_\s]*status\s*[:=]\s*/i, "").trim();
+  }
+
 
 
   private focusDashboardPanel(): void {
@@ -3171,7 +3567,7 @@ export class App implements OnInit {
     this.rightPanelUploadsOpen = false;
     this.rightPanelCommentsOpen = false;
     this.rightPanelLegendOpen = false;
-    this.rightPanelPendingUpdatesOpen = false;
+    this.rightPanelReportsOpen = false;
     this.rightPanelVoiceAgentOpen = false;
     try { this.legendWidget?.destroy?.(); } catch {}
     this.removeLegendClickListener();
@@ -3360,8 +3756,8 @@ export class App implements OnInit {
         return this.rightPanelDashboardOpen;
       case "legend":
         return this.rightPanelLegendOpen;
-      case "pendingUpdates":
-        return this.rightPanelPendingUpdatesOpen;
+      case "reports":
+        return this.rightPanelReportsOpen;
       case "voiceAgent":
         return this.rightPanelVoiceAgentOpen;
     }
@@ -4650,17 +5046,7 @@ export class App implements OnInit {
   }
 
   goHomeSidebar(): void {
-    const view = this.mapView;
-    if (!view) {
-      return;
-    }
-
-    const target = view.extent ?? view.center;
-    if (!target) {
-      return;
-    }
-
-    view.goTo({ target, zoom: view.zoom ?? 12 }).catch(() => undefined);
+    this.openAtmReportsPanel();
   }
 
   private loadArchive(parcelId: string): void {

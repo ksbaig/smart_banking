@@ -1,5 +1,16 @@
 <div class="comments-holder">
-  <h3 class="comments-title">Comments holder</h3>
+  <div class="comments-title-row">
+    <h3 class="comments-title">Comments holder</h3>
+    <button
+      *ngIf="showCloseButton"
+      type="button"
+      class="comments-close-btn"
+      (click)="requestClose()"
+      aria-label="Close comments"
+    >
+      Close
+    </button>
+  </div>
 
   <!-- Table -->
   <div class="table-wrapper">

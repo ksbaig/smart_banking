@@ -9,4 +9,5 @@ export const environment = {
   SATELLITE_IMAGERY: {
     exportUrl: 'https://stg-geoportal.rcrc.gov.sa/geoimage/rest/services/GISDATAOWNER_Satellite_Images/ImageServer/exportImage',
   },
+  GOOGLE_MAPS_API_KEY: 'AIzaSyBHx2tX6K5mUSPhr9HG7oWU2L0t232xHMQ',
 };

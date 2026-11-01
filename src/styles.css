@@ -13,12 +13,16 @@
 	padding: 0 !important;
 }
 
-.selected-road .header-logo {
+.selected-road .header-logo:not([hidden]) {
 	width: 100%;
 	height: 100%;
 	object-fit: contain;
 	display: block;
 	background: none;
+}
+
+.selected-road .header-logo[hidden] {
+	display: none !important;
 }
 
 /* Remove any border from the vertical map overlay controls */
@@ -242,4 +246,3 @@ section.ps-card,
 	border: none !important;
 	box-shadow: none !important;
 }
-

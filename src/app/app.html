@@ -12,10 +12,10 @@
   />
 
   <header class="dashboard-header" (contextmenu)="onHeaderContextMenu($event)">
-    <h1>{{ t('appTitle') }}</h1>
+    <h1>Smart Banking</h1>
     <div class="selected-road" (dblclick)="onSelectedRoadDoubleClick($event)">
       <span class="selected-road-user">User - {{ loggedInUser || 'Investment' }}</span>
-      <img class="header-logo" src="/assets/img/RBLOGO.png" alt="RB Logo" />
+      <img hidden class="header-logo" src="/assets/img/RBLOGO.png" alt="RB Logo" />
     </div>
   </header>
 
@@ -37,8 +37,8 @@
         type="button"
         class="left-sidebar-btn"
         [class.active]="isRightPanelSectionVisible('voiceAgent')"
-        aria-label="Voice agent"
-        title="Voice agent"
+        aria-label="AI agent"
+        title="AI agent"
         (click)="toggleRightPanelSection('voiceAgent')"
       >
         <i class="bi bi-mic"></i>
@@ -70,21 +70,21 @@
         name="leftSidebarHomeCopy"
         type="button"
         class="left-sidebar-btn"
-        aria-label="Home"
-        title="Home"
+        aria-label="ATM Reports"
+        title="ATM Reports"
         (click)="goHomeSidebar()"
       >
-        <i class="bi bi-house"></i>
+        <i class="bi bi-cash-stack"></i>
       </button>
       <button
         id="left-sidebar-pending-copy"
         name="leftSidebarPendingCopy"
         type="button"
         class="left-sidebar-btn"
-        [class.active]="isRightPanelSectionVisible('pendingUpdates')"
-        aria-label="Pending updates"
-        title="Pending updates"
-        (click)="togglePendingUpdatesPanel()"
+        [class.active]="isRightPanelSectionVisible('reports')"
+        aria-label="Reports"
+        title="Reports"
+        (click)="toggleReportsPanel()"
       >
         <i class="bi bi-map"></i>
       </button>
@@ -137,52 +137,9 @@
     [style.top.px]="headerContextMenuY"
     (mouseleave)="closeHeaderContextMenu()"
   >
-    <label class="hdr-ctx-checkbox">
-      <input type="checkbox" [(ngModel)]="showPopupOnMapClick" />
-      Show popup
-    </label>
-    <label class="hdr-ctx-checkbox">
-      <input type="checkbox" [(ngModel)]="showPanoramicPointsInContext" (change)="onPanoramicPointsCheckboxChange($event)" />
-      Show panoramic points
-    </label>
-    <hr />
-        <button
-          type="button"
-          class="btn-360 map-btn-360 btn-360-main"
-          (click)="openPanoramaDialog(); closeHeaderContextMenu()"
-          [title]="t('view360')"
-        >
-          <i class="bi bi-camera-video"></i>
-          {{ t('view360') }}
-        </button>
     <button type="button" (click)="openCommentsPopup()">💬 Comments</button>
     <button type="button" (click)="openHowToUse()">📖 How to use</button>
     <button type="button" (click)="openAbout()">ℹ️ About</button>
-    <button type="button" (click)="on360vContextAction()">360v</button>
-    <button type="button" (click)="onPanoramicJson(); closeHeaderContextMenu()">panoramic points</button>
-    <button type="button" (click)="openPanoramaOverlay(); closeHeaderContextMenu()">📷 360 view on map</button>
-    <button type="button" (click)="openSceneOverlay(); closeHeaderContextMenu()">🗽 3D on the map</button>
-    <button type="button" (click)="toggleThemeMenu()">🎨 Themes</button>
-    <button type="button" (click)="openKrokiDialog()">🗺️ Kroki</button>
-    <button type="button" (click)="openPlotPrintDialog()">🖨️ Print Template</button>
-    <button
-              id="Dashboard"
-              name="Dashboard"
-              type="button"
-              class="btn-clear-graphics"
-              (click)="openDashboardPanel()"
-              [title]="'Dashboard'"
-            >
-              Dashboard
-            </button>
-    <button id="PanoramicView" name="PanoramicView" type="button" (click)="onPanoramicView(); closePlotSheet1ContextMenu()">
-      Panoramic View
-    </button>
-    <button id="PanoramicLayer" name="PanoramicLayer" type="button" (click)="onPanoramicJson(); closeHeaderContextMenu()">
-      Panoramic layer
-    </button>
-    <button type="button" (click)="openLegendPanel()">Show Legend</button>
-    <button type="button" (click)="openPlotSheetDialog()">📄 Plot Sheet</button>
   </div>
 
   <!-- Selected-road double-click menu -->
@@ -279,7 +236,7 @@
                 </button>
               </div>
 
-              <div class="map-search-actions dashboard-action">
+              <div class="map-search-actions dashboard-action dashboard-action-double">
                 <button
                   type="button"
                   class="btn-dashboard"
@@ -289,6 +246,39 @@
                 >
                   <i class="bi bi-download"></i>
                   <span>Download</span>
+                </button>
+                <button
+                  id="360View"
+                  name="360View"
+                  type="button"
+                  class="btn-dashboard"
+                  (click)="openPanoramaDialog()"
+                  [title]="'360View'"
+                >
+                  <i class="bi bi-camera-video"></i>
+                  <span>360View</span>
+                </button>
+                <button
+                  id="street360view"
+                  name="street360view"
+                  type="button"
+                  class="btn-dashboard"
+                  (click)="openStreetView()"
+                  [title]="'360view'"
+                >
+                  <i class="bi bi-camera-video"></i>
+                  <span>360view</span>
+                </button>
+                <button
+                  id="dashborad_component"
+                  name="dashborad_component"
+                  type="button"
+                  class="btn-dashboard"
+                  (click)="openDashboardComponent()"
+                  [title]="'Dashboard'"
+                >
+                  <i class="bi bi-speedometer2"></i>
+                  <span>Dashboard</span>
                 </button>
               </div>
 
@@ -326,7 +316,10 @@
             <button type="button" class="map-comments-close" (click)="closeCommentsPopup()" aria-label="Close">×</button>
           </div>
           <div class="map-comments-popup-body">
-            <app-comments></app-comments>
+            <app-comments
+              [showCloseButton]="true"
+              (closeRequested)="closeCommentsPopup()"
+            ></app-comments>
           </div>
         </div>
 
@@ -342,10 +335,6 @@
             <span class="panel-right-toggle-icon map-overlay-collapse-toggle-icon" [class.open]="!mapOverlayCollapsed">❯</span>
           </button>
           <div class="map-overlay-body" [class.collapsed]="mapOverlayCollapsed">
-          <div class="map-service-status" *ngIf="!isOnline || !panoramicServiceAvailable">
-            <span class="status-text">{{ panoramicServiceUnavailableMessage || (isOnline ? 'Panoramic portal is unavailable. Internet access is required for this feature.' : 'Offline mode: panoramic portal unavailable.') }}</span>
-            <button type="button" class="status-retry" *ngIf="isOnline && !panoramicServiceAvailable" (click)="checkPanoramicServiceAvailability()">Retry</button>
-          </div>
           <div class="panoramic-click-message" *ngIf="panoramicClickMessage">
             {{ panoramicClickMessage }}
           </div>
@@ -494,6 +483,31 @@
               allowfullscreen
             ></iframe>
             <div class="panorama-overlay-status" *ngIf="panoramaError">{{ panoramaError }}</div>
+          </div>
+        </div>
+
+        <!-- Street View 360° Panel -->
+        <div class="street-view-panel" *ngIf="streetViewOpen" [class.loading]="streetViewLoading">
+          <div class="street-view-header">
+            <h3>360° Street View</h3>
+            <div class="street-view-info" *ngIf="streetViewDistanceText && !streetViewError">
+              <span class="distance-badge">{{ streetViewDistanceText }}</span>
+            </div>
+            <button type="button" class="street-view-close" (click)="closeStreetView()" aria-label="Close Street View">×</button>
+          </div>
+          <div class="street-view-body">
+            <div *ngIf="streetViewLoading" class="street-view-loading">
+              <div class="spinner"></div>
+              <span>Loading Street View...</span>
+            </div>
+            <div *ngIf="streetViewError" class="street-view-error">
+              {{ streetViewError }}
+            </div>
+            <div 
+              *ngIf="!streetViewLoading && !streetViewError" 
+              id="street-view-panorama-host" 
+              class="street-view-panorama-host"
+            ></div>
           </div>
         </div>
       </div>
@@ -654,32 +668,110 @@
           </section>
         </div>
 
-        <section class="right-panel-section" *ngIf="isRightPanelSectionVisible('pendingUpdates')">
+        <section class="right-panel-section" *ngIf="isRightPanelSectionVisible('reports')">
           <button
             type="button"
             class="right-panel-header"
-            (click)="toggleRightPanelSection('pendingUpdates')"
-            [attr.aria-expanded]="rightPanelPendingUpdatesOpen"
+            (click)="toggleRightPanelSection('reports')"
+            [attr.aria-expanded]="rightPanelReportsOpen"
           >
             <span class="right-panel-title-row">
-              <span class="step-badge">P</span>
-              <h2>Pending Updates</h2>
+              <span class="step-badge">R</span>
+              <h2>Reports</h2>
             </span>
-            <span class="right-panel-chevron" [class.open]="rightPanelPendingUpdatesOpen">▾</span>
+            <span class="right-panel-chevron" [class.open]="rightPanelReportsOpen">▾</span>
           </button>
 
-          <div class="right-panel-body" *ngIf="rightPanelPendingUpdatesOpen">
-            <app-pending-updates
-              [records]="pendingUpdateRecords"
-              [loading]="pendingUpdatesLoading"
-              [error]="pendingUpdatesError"
-            ></app-pending-updates>
+          <div class="right-panel-body reports-panel-body" *ngIf="rightPanelReportsOpen">
+            <div class="matching-roads map-search-status" *ngIf="branchReportsLoading">Loading {{ reportEntityPluralLabel }} reports...</div>
+            <div class="matching-roads map-search-status" *ngIf="branchReportsError">{{ branchReportsError }}</div>
+            <div class="reports-shell" *ngIf="!branchReportsLoading && !branchReportsError">
+              <div class="reports-title-row">
+                <h3 class="reports-title">{{ reportsTitle }}</h3>
+                <span class="reports-badge">DEMO DATA</span>
+              </div>
+              <p class="reports-subtitle">
+                {{ reportQueryHelpText }}
+              </p>
+
+              <div class="reports-query-bar">
+                <div class="reports-query-input-wrap">
+                  <i class="bi bi-search"></i>
+                  <input
+                    type="text"
+                    class="reports-query-input"
+                    [placeholder]="reportQueryExample"
+                    [(ngModel)]="branchReportQuery"
+                    (keyup.enter)="onBranchReportsSubmit()"
+                  />
+                </div>
+                <button type="button" class="reports-query-run" (click)="onBranchReportsSubmit()">
+                  <i class="bi bi-play-fill"></i>
+                  Run report
+                </button>
+                <button type="button" class="reports-query-reset" (click)="onBranchReportsReset()">
+                  <i class="bi bi-arrow-clockwise"></i>
+                  Reset
+                </button>
+                <button type="button" class="reports-query-export" (click)="exportBranchReportsPdf()">
+                  <i class="bi bi-file-earmark-pdf"></i>
+                  Export PDF
+                </button>
+              </div>
+
+              <div class="reports-summary-grid">
+                <div class="reports-summary-card">
+                  <div class="reports-summary-label">{{ branchReportStatusLabel }} {{ reportEntityPluralLabel }}</div>
+                  <div class="reports-summary-value">{{ branchReportDisplayedRows.length }}</div>
+                </div>
+                <div class="reports-summary-card">
+                  <div class="reports-summary-label">Districts</div>
+                  <div class="reports-summary-value">{{ branchReportDistrictCount }}</div>
+                </div>
+                <div class="reports-summary-card">
+                  <div class="reports-summary-label">Report date</div>
+                  <div class="reports-summary-value">{{ branchReportDateLabel }}</div>
+                </div>
+              </div>
+
+              <div class="reports-grid-wrap">
+                <table class="reports-grid-table">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>{{ reportIdHeader }}</th>
+                      <th>Bank</th>
+                      <th>District</th>
+                      <th>{{ reportNameHeader }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let row of branchReportDisplayedRows">
+                      <td>
+                        <span class="reports-status-pill">{{ row.Performance_Status }}</span>
+                      </td>
+                      <td>{{ row.Entity_ID }}</td>
+                      <td>{{ row.Bank_Name }}</td>
+                      <td>{{ row.District }}</td>
+                      <td>{{ row.Entity_Name }}</td>
+                    </tr>
+                    <tr *ngIf="!branchReportDisplayedRows.length">
+                      <td colspan="5">No {{ reportEntityPluralLabel }} reports found for this query.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="reports-footer">
+                Showing {{ branchReportDisplayedRows.length }} result(s)
+              </div>
+            </div>
           </div>
         </section>
 
         <section class="right-panel-section" *ngIf="isRightPanelSectionVisible('voiceAgent')">
           <button type="button" class="right-panel-header" (click)="toggleRightPanelSection('voiceAgent')" [attr.aria-expanded]="rightPanelVoiceAgentOpen">
-            <span class="right-panel-title-row"><span class="step-badge"><i class="bi bi-mic-fill"></i></span><h2>Voice Agent</h2></span>
+            <span class="right-panel-title-row"><span class="step-badge"><i class="bi bi-mic-fill"></i></span><h2>AI Agent</h2></span>
             <span class="right-panel-chevron" [class.open]="rightPanelVoiceAgentOpen">▾</span>
           </button>
           <div class="right-panel-body" *ngIf="rightPanelVoiceAgentOpen">
@@ -1135,11 +1227,14 @@
     </header>
     <div class="attr-modal-body htu-body">
       <ol>
-        <li>Use the <strong>left panel</strong> to search for a parcel by Plot ID or road name.</li>
-        <li>Click a result and press <strong>Apply</strong> to highlight it on the map.</li>
-        <li>Use the <strong>right panel</strong> to explore archive files, 360° panoramas, KROKI plans, 3D view and CCTV.</li>
+        <li>Use the <strong>left sidebar</strong> to open map search, AI Agent, Dashboard, Legend, Reports and drawing tools.</li>
+        <li>Search by <strong>ATM ID</strong> or <strong>Branch ID</strong>, then select a result to highlight it on the map.</li>
+        <li>Use the <strong>AI Agent</strong> to run text or voice queries and display filtered ATM/branch results on the map.</li>
+        <li>Open the <strong>Dashboard</strong> to view ATM and Branch performance summaries and detailed metrics.</li>
+        <li>Switch the <strong>base map</strong> between Webmap and Satellite for different viewing contexts.</li>
+        <li>Use the <strong>right panel</strong> for 3D scene, 360° view, CCTV, KROKI, reports and comments.</li>
         <li>Right-click the <strong>header</strong> to open Comments, this guide, or About.</li>
-        <li>Use <strong>Comments</strong> to record and track notes per parcel. Data is saved locally and can be exported as JSON or TXT.</li>
+        <li>Use <strong>Comments</strong> to record and track notes. Data is saved locally and can be exported as JSON or TXT.</li>
       </ol>
     </div>
   </div>
@@ -1153,13 +1248,14 @@
       <button type="button" class="attr-close" (click)="aboutOpen = false" aria-label="Close">×</button>
     </header>
     <div class="attr-modal-body about-body">
-      <p><strong>DQ Land Information System</strong></p>
-      <p>A spatial archive and land-record management platform for the Diplomatic Quarter.</p>
+      <p><strong>Smart Banking Network System</strong></p>
+      <p>A map-based banking intelligence platform for ATM and branch operations in Riyadh.</p>
       <ul>
-        <li>Master Plan data: 2018 &amp; PB 2026</li>
-        <li>Archive sources: Deeds, Survey, Permits, CAD, PDF, Images</li>
-        <li>Integrated 360° panorama, 3D scene and CCTV viewers</li>
-        <li>Comments module with local JSON/TXT export</li>
+        <li>ATM and Branch locator with interactive map search</li>
+        <li>Base map switching between Webmap and Satellite view</li>
+        <li>ATM Dashboard and Branches Dashboard with performance metrics</li>
+        <li>AI query assistant (text and voice) to filter and display results on map</li>
+        <li>Integrated 3D scene, 360° view, CCTV, reports and comments</li>
       </ul>
       <p class="about-version">Version 1.0 &nbsp;·&nbsp; May 2026</p>
     </div>
@@ -1594,6 +1690,16 @@
   [selectedLocation]="selectedDownloadLocation"
   (closeModal)="closeDownloadModal()"
 ></app-component-download>
+<div class="attr-modal-backdrop" *ngIf="dashboardComponentOpen" (click)="closeDashboardComponent()">
+  <div class="attr-modal dashboard-component-modal" (click)="$event.stopPropagation()">
+    <button type="button" class="attr-close" (click)="closeDashboardComponent()" aria-label="Close">×</button>
+    @if (dashboardComponentType === 'atm') {
+      <app-component-atm-dashboard [initialSearch]="dashboardComponentSearch"></app-component-atm-dashboard>
+    } @else if (dashboardComponentType === 'branch') {
+      <app-component-branches-dashboard [initialSearch]="dashboardComponentSearch"></app-component-branches-dashboard>
+    }
+  </div>
+</div>
 <div class="attr-modal-backdrop" *ngIf="plotPrintDialogOpen" (click)="closePlotPrintDialog()">
   <div class="attr-modal plot-print-modal" (click)="$event.stopPropagation()">
     <button type="button" class="attr-close" (click)="closePlotPrintDialog()" aria-label="Close">×</button>

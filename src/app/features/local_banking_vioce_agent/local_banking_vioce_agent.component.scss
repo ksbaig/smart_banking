@@ -1,7 +1,7 @@
 .voice-agent-panel {
   display: grid;
   gap: 10px;
-  color: #f6f8ff;
+  color: #000;
 }
 
 .panel-header h3 {
@@ -11,7 +11,7 @@
 
 .panel-header p {
   margin: 4px 0 0;
-  opacity: 0.8;
+  opacity: 1;
   font-size: 0.85rem;
 }
 
@@ -63,7 +63,7 @@ button:disabled {
   display: grid;
   gap: 4px;
   font-size: 0.78rem;
-  opacity: 0.85;
+  opacity: 1;
 }
 
 .fallback {

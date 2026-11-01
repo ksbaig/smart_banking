@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Comment } from '../../shared/models/comment.model';
@@ -12,6 +12,8 @@ import { CommentService } from '../../core/services/comment.service';
   styleUrls: ['./comments.component.css'],
 })
 export class CommentsComponent implements OnInit {
+  @Input() showCloseButton = false;
+  @Output() closeRequested = new EventEmitter<void>();
 
   rows: Comment[] = [];
 
@@ -38,6 +40,10 @@ export class CommentsComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+  }
+
+  requestClose(): void {
+    this.closeRequested.emit();
   }
 
   // ── Data ─────────────────────────────────────────────────────────────

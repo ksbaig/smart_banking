@@ -33,9 +33,9 @@ if (typeof window !== 'undefined') {
 
   if (typeof win.XMLHttpRequest !== 'undefined') {
     const originalOpen = win.XMLHttpRequest.prototype.open;
-    win.XMLHttpRequest.prototype.open = function (method: string, url: string, async?: boolean, user?: string, password?: string) {
-      logResourceRequest('XHR', url, method);
-      return originalOpen.apply(this, [method, url, async, user, password]);
+    win.XMLHttpRequest.prototype.open = function (...args: any[]) {
+      logResourceRequest('XHR', String(args[1]), String(args[0]));
+      return originalOpen.apply(this, args as any);
     };
   }
 }
