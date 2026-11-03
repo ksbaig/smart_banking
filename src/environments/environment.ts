@@ -7,7 +7,7 @@ export const environment = {
     PANORAMIC_IMAGE_LOCAL_IIS_URL: 'http://localhost/360view/original',
   },
   SATELLITE_IMAGERY: {
-    exportUrl: 'https://stg-geoportal.rcrc.gov.sa/geoimage/rest/services/GISDATAOWNER_Satellite_Images/ImageServer/exportImage',
+    exportUrl: 'sattelite.png',
   },
   GOOGLE_MAPS_API_KEY: 'AIzaSyBHx2tX6K5mUSPhr9HG7oWU2L0t232xHMQ',
 };

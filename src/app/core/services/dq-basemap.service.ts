@@ -9,11 +9,9 @@
  *   - Primary query field: PlotID  (alias "Plot ID", esriFieldTypeString, length 15)
  */
 import { Injectable } from "@angular/core";
-import esriConfig from "@arcgis/core/config";
 import Graphic from "@arcgis/core/Graphic";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
-import ImageryLayer from "@arcgis/core/layers/ImageryLayer";
 import WebTileLayer from "@arcgis/core/layers/WebTileLayer";
 import Basemap from "@arcgis/core/Basemap";
 import Point from "@arcgis/core/geometry/Point";
@@ -38,19 +36,6 @@ import { BehaviorSubject } from "rxjs";
 import { MapConfig, Parcel } from "../../shared/models/parcel.model";
 
 // ─── New portal / map constants ──────────────────────────────────────────────
-const PORTAL_URL = "https://stg-geoportal.rcrc.gov.sa/geoportal";
-const PORTAL_HOST = "https://stg-geoportal.rcrc.gov.sa";
-const WEBMAP_ID  = "dd12f69323894efd92f6ca63b62ed672";   // Landuse&Transportation_WebMap (view only)
-
-/** Direct URL to the DQ_Basemap parcel layer used for all queries / click selection. */
-export const DQ_BASEMAP_LAYER_URL =
-  "https://stg-geoportal.rcrc.gov.sa/geoserver/rest/services/Projects_NETAQ/DQ_Basemap/FeatureServer/28";
-
-/** Satellite-only imagery service used when the user toggles to "Satellite" mode. */
-const SATELLITE_IMAGERY_URL =
-  "https://stg-geoportal.rcrc.gov.sa/geoimage/rest/services/GISDATAOWNER_Satellite_Images/ImageServer";
-const SATELLITE_IMAGERY_EXPORT_URL = `${SATELLITE_IMAGERY_URL}/exportImage`;
-
 /** Primary attribute field on FeatureServer/28 used to search / identify a plot. */
 const PLOT_ID_FIELD = "PlotID";
 const MASTERPLAN_PLOT_NO_FIELD = "MasterplanPlotNo";
@@ -146,19 +131,11 @@ export class DqBasemapService {
     this.mapConfig = config;
 
     try {
-      this.trustPortalServer(config.portalUrl ?? PORTAL_URL);
-      // Use the new webmap ID regardless of what is passed in config.
-      // If center/zoom are omitted, MapView falls back to the webmap's saved opening extent.
       this.webMap = new WebMap({
-        portalItem: {
-          id: WEBMAP_ID,
-          portal: { url: config.portalUrl ?? PORTAL_URL },
-        },
+        basemap: this.getGoogleStreetsBasemap(),
       });
-      await this.webMap.load();
-      this.removeOnlineImageryAndBasemapLayers();
     } catch (error) {
-      console.warn("DqBasemapService: portal/webmap load failed, using Google Streets fallback", error);
+      console.warn("DqBasemapService: local map initialization failed", error);
       this.webMap = new WebMap({
         basemap: this.getGoogleStreetsBasemap(),
       });
@@ -188,20 +165,6 @@ export class DqBasemapService {
     // Keep "webmap" mode aligned with the startup map style.
     this.originalBasemap = this.getGoogleStreetsBasemap();
 
-    // Load the DQ_Basemap parcel layer directly by URL — independent of webmap layers.
-    try {
-      this.parcelLayer = new FeatureLayer({
-        url: DQ_BASEMAP_LAYER_URL,
-        outFields: ["*"],
-        popupEnabled: false,
-      });
-      this.webMap.add(this.parcelLayer);
-      await this.parcelLayer.load();
-    } catch (error) {
-      console.warn("DqBasemapService: parcel layer load failed", error);
-      this.parcelLayer = undefined;
-    }
-
     this.highlightLayer = new GraphicsLayer({ title: "Selected Plot" });
     this.webMap.add(this.highlightLayer);
 
@@ -223,15 +186,6 @@ export class DqBasemapService {
     this.ensureMasterplanLoaded().catch((err) =>
       console.error("DqBasemapService: failed to load masterplan plots", err)
     );
-  }
-
-  private trustPortalServer(portalUrl: string): void {
-    const portalOrigin = new URL(portalUrl).origin;
-    for (const serverUrl of [PORTAL_HOST, portalOrigin]) {
-      if (!esriConfig.request.trustedServers.includes(serverUrl)) {
-        esriConfig.request.trustedServers.push(serverUrl);
-      }
-    }
   }
 
   private removeOnlineImageryAndBasemapLayers(): void {
@@ -484,46 +438,16 @@ export class DqBasemapService {
       return matches;
     }
 
-    if (!this.parcelLayer) {
-      console.log("[searchMasterplanPlots] no parcelLayer available for live search", { dataset, term });
-      return [];
+    await this.ensureMasterplanLoaded();
+    const matches: Parcel[] = [];
+    for (const feat of this.masterplanFeatures) {
+      const plotNo = feat.properties?.[MASTERPLAN_PLOT_FIELD];
+      if (plotNo != null && String(plotNo).toUpperCase().includes(q)) {
+        matches.push(this.masterplanFeatureToParcel(feat, MASTERPLAN_PLOT_FIELD, dataset));
+        if (matches.length >= 25) break;
+      }
     }
-
-    await this.parcelLayer.load();
-    const plotField = this.getLiveMasterplanSearchField(this.parcelLayer);
-    const safe = term.trim().replace(/'/g, "''");
-    const query = this.parcelLayer.createQuery();
-    query.where = `${plotField} = '${safe}' OR ${plotField} LIKE '%${safe}%'`;
-    query.outFields = ["*"];
-    query.returnGeometry = true;
-    query.num = 25;
-
-    console.log("[searchMasterplanPlots] live FeatureServer query", {
-      dataset,
-      term,
-      plotField,
-      layerUrl: this.parcelLayer.url,
-      where: query.where,
-    });
-
-    const result = await this.parcelLayer.queryFeatures(query);
-    const parcels = result.features.map((feature) => this.graphicToParcel(feature));
-    if (parcels.length) {
-      console.log("[searchMasterplanPlots] found records", {
-        dataset,
-        term,
-        count: parcels.length,
-        results: parcels.map((parcel) => parcel.attributes),
-      });
-    } else {
-      console.log("[searchMasterplanPlots] no records found", {
-        dataset,
-        term,
-        plotField,
-        layerUrl: this.parcelLayer.url,
-      });
-    }
-    return parcels;
+    return matches;
   }
 
   async searchAtmAndBranchById(term: string): Promise<Parcel[]> {
@@ -2565,14 +2489,7 @@ export class DqBasemapService {
   }
 
   private getSatelliteBasemap(): Basemap {
-    if (!this.satelliteBasemap) {
-      this.satelliteBasemap = new Basemap({
-        baseLayers: [new ImageryLayer({ url: SATELLITE_IMAGERY_URL })],
-        title: "Satellite",
-        id: "satellite-only",
-      });
-    }
-    return this.satelliteBasemap;
+    return this.getGoogleSatelliteBasemap();
   }
 
   private getGoogleStreetsBasemap(): Basemap {

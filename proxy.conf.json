@@ -5,15 +5,6 @@
     "changeOrigin": true,
     "logLevel": "debug"
   },
-  "/portal-api": {
-    "target": "https://stg-geoportal.rcrc.gov.sa",
-    "secure": false,
-    "changeOrigin": true,
-    "pathRewrite": {
-      "^/portal-api": "/geoportal"
-    },
-    "logLevel": "debug"
-  },
   "/360view": {
     "target": "http://localhost",
     "secure": false,

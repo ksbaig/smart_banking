@@ -21,9 +21,8 @@ import { Viewer } from "@photo-sphere-viewer/core";
 import "@photo-sphere-viewer/core/index.css";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
-import { environment } from "../environments/environment";
 import { ArchiveService } from "./core/services/archive.service";
-import { DqBasemapService, DQ_BASEMAP_LAYER_URL } from "./core/services/dq-basemap.service";
+import { DqBasemapService } from "./core/services/dq-basemap.service";
 import { PanoramicPointsService } from "./core/services/panoramic-points.service";
 import { StreetViewService } from "./core/services/street-view.service";
 import { ArchiveFile, ArchiveFileGroup } from "./shared/models/archive.model";
@@ -323,26 +322,9 @@ export class App implements OnInit {
   }
 
   public async checkPanoramicServiceAvailability(): Promise<void> {
-    if (!this.isOnline) {
-      this.panoramicServiceAvailable = false;
-      this.panoramicServiceUnavailableMessage = 'Offline mode: panoramic portal unavailable.';
-      return;
-    }
-
-    const featureLayerUrl = 'https://stg-geoportal.rcrc.gov.sa/geoserver/rest/services/Hosted/DQ_PanoramicImagesReferences/FeatureServer';
-    const statusUrl = `${featureLayerUrl}/0?f=json`;
-    try {
-      const response = await fetch(statusUrl, { method: 'GET' });
-      if (!response.ok) {
-        throw new Error(`Service responded with HTTP ${response.status}`);
-      }
-      this.panoramicServiceAvailable = true;
-      this.panoramicServiceUnavailableMessage = "";
-    } catch (error) {
-      console.warn('[service availability] panoramic portal unavailable', error);
-      this.panoramicServiceAvailable = false;
-      this.panoramicServiceUnavailableMessage = 'Panoramic portal is unavailable. Internet access is required for this feature.';
-    }
+    this.panoramicServiceAvailable = false;
+    this.panoramicServiceUnavailableMessage =
+      'Panoramic portal data is unavailable. Use the local panoramic image or generated local points.';
   }
 
   onPanoramicViewButton(): void {
@@ -1021,7 +1003,7 @@ export class App implements OnInit {
   ];
 
   readonly mapConfig: MapConfig = {
-    portalUrl: "https://stg-geoportal.rcrc.gov.sa/geoportal",
+    portalUrl: "https://www.arcgis.com",
     // NEW WebMap (view only) — Landuse&Transportation_WebMap
     webMapId: "dd12f69323894efd92f6ca63b62ed672",
     // 3D Map of the Diplomatic Quarter — WebScene item id.
@@ -1331,7 +1313,7 @@ export class App implements OnInit {
   }
 
   openPanoramaDialog(): void {
-    // Load the bank360view.jpg panoramic image for 360-degree viewing
+    // Load the bundled panoramic image for 360-degree viewing
     this.panoramaImageUrl = "/assets/img/panoramic/bank360view.jpg";
     // close overlay if open
     if (this.panoramaOverlayOpen) {
@@ -2218,10 +2200,10 @@ export class App implements OnInit {
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("printTemplate") === "1") {
-      // Always resolve print-template data from the live FeatureServer.
       const plotIdParam = params.get("plotId");
       if (plotIdParam) {
-        void this.fetchParcelByPlotId(plotIdParam.trim()).then((p) => {
+        void this.mapService.searchMasterplanPlots(plotIdParam.trim()).then((matches) => {
+          const p = matches[0] ?? null;
           if (p) {
             this.selectedParcel = p;
             this.plotPrintGeneratedAt = this.formatHumanDateTime(new Date());
@@ -2237,84 +2219,8 @@ export class App implements OnInit {
     }
   }
 
-  // Query the FeatureServer directly for a parcel by PlotID (lightweight fallback)
-  private async fetchParcelByPlotId(plotId: string): Promise<Parcel | null> {
-    try {
-      const where = encodeURIComponent(`UPPER(${"PlotID"}) = '${plotId.replace(/'/g, "''").toUpperCase()}'`);
-      const url = `${DQ_BASEMAP_LAYER_URL}/query?where=${where}&outFields=*&returnGeometry=true&f=json`;
-      const resp = await fetch(url, { method: "GET", credentials: "include" });
-      if (!resp.ok) {
-        console.warn("Parcel query HTTP error", resp.status);
-        return null;
-      }
-      const data = await resp.json();
-      if (!data || !data.features || !data.features.length) return null;
-      const feat = data.features[0];
-      const parcel: Parcel = {
-        id: String(feat.attributes?.OBJECTID ?? feat.attributes?.PlotID ?? ""),
-        displayName: String(feat.attributes?.PlotID ?? feat.attributes?.PlotID ?? ""),
-        objectId: Number(feat.attributes?.OBJECTID ?? 0),
-        attributes: feat.attributes ?? {},
-        geometry: feat.geometry ? { type: feat.geometry.type, coordinates: feat.geometry.coordinates } : undefined,
-      };
-      return parcel;
-    } catch (err) {
-      console.error("fetchParcelByPlotId failed", err);
-      return null;
-    }
-  }
-
-  private async fetchParcelByObjectId(objectId: number): Promise<Parcel | null> {
-    try {
-      if (!Number.isFinite(objectId) || objectId <= 0) {
-        return null;
-      }
-      const where = encodeURIComponent(`OBJECTID = ${objectId}`);
-      const url = `${DQ_BASEMAP_LAYER_URL}/query?where=${where}&outFields=*&returnGeometry=true&f=json`;
-      const resp = await fetch(url, { method: "GET", credentials: "include" });
-      if (!resp.ok) {
-        console.warn("Parcel query HTTP error", resp.status);
-        return null;
-      }
-      const data = await resp.json();
-      if (!data || !data.features || !data.features.length) return null;
-      const feat = data.features[0];
-      const parcel: Parcel = {
-        id: String(feat.attributes?.OBJECTID ?? feat.attributes?.PlotID ?? ""),
-        displayName: String(feat.attributes?.PlotID ?? feat.attributes?.PlotID ?? ""),
-        objectId: Number(feat.attributes?.OBJECTID ?? 0),
-        attributes: feat.attributes ?? {},
-        geometry: feat.geometry ? { type: feat.geometry.type, coordinates: feat.geometry.coordinates } : undefined,
-      };
-      return parcel;
-    } catch (err) {
-      console.error("fetchParcelByObjectId failed", err);
-      return null;
-    }
-  }
-
   private async refreshSelectedParcelFromLive(parcel: Parcel): Promise<Parcel | null> {
-    if (this.isLocationIdSearch(parcel.id)) {
-      return null;
-    }
-
-    const objectId = Number(parcel.objectId ?? parcel.attributes?.["OBJECTID"] ?? parcel.id);
-    if (Number.isFinite(objectId) && objectId > 0) {
-      const liveById = await this.fetchParcelByObjectId(objectId);
-      if (liveById) {
-        return liveById;
-      }
-    }
-
-    const plotId = String(parcel.displayName ?? parcel.attributes?.["PlotID"] ?? parcel.attributes?.["PlotId"] ?? "").trim();
-    if (plotId) {
-      const liveByPlotId = await this.fetchParcelByPlotId(plotId);
-      if (liveByPlotId) {
-        return liveByPlotId;
-      }
-    }
-
-    return null;
+    return this.isLocationIdSearch(parcel.id) ? null : parcel;
   }
 
   private isLocationIdSearch(value: string | null | undefined): boolean {
@@ -4245,54 +4151,8 @@ export class App implements OnInit {
     W: number,
     H: number
   ): string {
-    // Tight pad so the polygon fills most of the frame (matches the reference look).
-    const padFactor = 0.06;
-    let bMinX = minX - w * padFactor;
-    let bMaxX = maxX + w * padFactor;
-    let bMinY = minY - h * padFactor;
-    let bMaxY = maxY + h * padFactor;
-    const bw = bMaxX - bMinX;
-    const bh = bMaxY - bMinY;
-    const targetRatio = W / H;
-    const bboxRatio = bw / bh;
-    if (bboxRatio > targetRatio) {
-      const newH = bw / targetRatio;
-      const cy = (bMinY + bMaxY) / 2;
-      bMinY = cy - newH / 2;
-      bMaxY = cy + newH / 2;
-    } else {
-      const newW = bh * targetRatio;
-      const cx = (bMinX + bMaxX) / 2;
-      bMinX = cx - newW / 2;
-      bMaxX = cx + newW / 2;
-    }
-
-    // Project bbox from WGS84 (4326) to Web Mercator (3857) — the imagery's
-    // native SR. This avoids server-side reprojection blur and gives a crisper image.
-    const toMerc = (lon: number, lat: number): [number, number] => {
-      const R = 6378137;
-      const x = (lon * Math.PI / 180) * R;
-      const clamped = Math.max(Math.min(lat, 85.05112878), -85.05112878);
-      const y = Math.log(Math.tan(Math.PI / 4 + (clamped * Math.PI / 180) / 2)) * R;
-      return [x, y];
-    };
-    const [mMinX, mMinY] = toMerc(bMinX, bMinY);
-    const [mMaxX, mMaxY] = toMerc(bMaxX, bMaxY);
-
-    // Request at 2x for a sharper preview on HiDPI screens.
-    const scale = 2;
-    const params = new URLSearchParams({
-      bbox: `${mMinX},${mMinY},${mMaxX},${mMaxY}`,
-      bboxSR: "3857",
-      imageSR: "3857",
-      size: `${W * scale},${H * scale}`,
-      format: "png",
-      transparent: "false",
-      f: "image",
-    });
-    const base = (environment?.SATELLITE_IMAGERY?.exportUrl) ||
-      "https://stg-geoportal.rcrc.gov.sa/geoimage/rest/services/GISDATAOWNER_Satellite_Images/ImageServer/exportImage";
-    return `${base}?${params.toString()}`;
+    // The staging imagery service is unavailable; use the bundled image.
+    return new URL("sattelite.png", document.baseURI).toString();
   }
 
   addNewDocument(): void {
@@ -5365,43 +5225,9 @@ export class App implements OnInit {
 
   async onPanoramicView(): Promise<void> {
     console.log('Panoramic View button clicked');
-
-    try {
-      const token = await this.requestArcGisToken();
-      if (!token) {
-        console.warn('PanoramicView cancelled: no credentials entered.');
-        return;
-      }
-
-      const featureLayerUrl = 'https://stg-geoportal.rcrc.gov.sa/geoserver/rest/services/Hosted/DQ_PanoramicImagesReferences/FeatureServer';
-      const params = new URLSearchParams({
-        where: '1=1',
-        outFields: '*',
-        f: 'geojson',
-        token,
-      });
-
-      const response = await fetch(`${featureLayerUrl}/query?${params.toString()}`);
-      const data = await response.json();
-
-      if (!response.ok || data?.error) {
-        const message = data?.error?.message || `HTTP ${response.status}`;
-        throw new Error(`Failed to fetch feature layer data: ${message}`);
-      }
-
-      if (!Array.isArray(data.features)) {
-        throw new Error('Feature layer response does not contain a features array.');
-      }
-
-      console.log('Feature layer data:', data);
-      data.features.forEach((feature: any) => {
-        const coordinates = feature.geometry.coordinates;
-        const properties = feature.properties;
-        this.mapService.addPointToMap(coordinates, properties);
-      });
-    } catch (error) {
-      console.error('Error fetching feature layer data:', error);
-    }
+    this.showPanoramicClickMessage(
+      'The remote panoramic reference service is unavailable. Use the local 360 image.'
+    );
   }
 
   async onPanoramicJson(): Promise<void> {
