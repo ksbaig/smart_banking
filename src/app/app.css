@@ -1125,6 +1125,23 @@ section#ps1-extra-box-3 .panel {
 	margin-top: 8px;
 }
 
+/* Keep the compact map controls icon-only; titles remain available on hover. */
+.map-overlay-controls .map-view-controls button:not(.btn-3d-arrow):not(.btn-360-arrow),
+.map-search-actions button {
+	font-size: 0;
+	width: 40px;
+	min-width: 40px;
+	height: 40px;
+	padding: 0;
+	flex: 0 0 40px;
+}
+
+.map-overlay-controls .map-view-controls button:not(.btn-3d-arrow):not(.btn-360-arrow) i,
+.map-search-actions button i {
+	font-size: 18px;
+	line-height: 1;
+}
+
 /* Satellite menu styles */
 .sat-menu-wrap {
 	position: relative;
